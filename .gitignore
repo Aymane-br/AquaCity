@@ -1,0 +1,15 @@
+# Wi-Fi and MQTT passwords
+firmware/**/secrets.h
+
+# Arduino / PlatformIO build output
+build/
+.pio/
+
+# Node-RED local credentials
+*_cred.json
+.flows*_cred.json
+
+# OS and Office temp files
+Thumbs.db
+.DS_Store
+~$*

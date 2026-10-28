@@ -1,0 +1,190 @@
+[
+ {
+  "id": "aq_tab",
+  "type": "tab",
+  "label": "AquaCity",
+  "disabled": false,
+  "info": "Custom dashboard. Open http://localhost:1880/farm"
+ },
+ {
+  "id": "aq_brk",
+  "type": "mqtt-broker",
+  "name": "Local Mosquitto (AquaCity)",
+  "broker": "localhost",
+  "port": "1883",
+  "clientid": "nodered-aquacity",
+  "autoConnect": true,
+  "usetls": false,
+  "protocolVersion": "4",
+  "keepalive": "30",
+  "cleansession": true
+ },
+ {
+  "id": "aq_wsl",
+  "type": "websocket-listener",
+  "path": "/ws/farm",
+  "wholemsg": "false"
+ },
+ {
+  "id": "aq_in1",
+  "type": "mqtt in",
+  "z": "aq_tab",
+  "name": "all node topics",
+  "topic": "iotfrontier/#",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "aq_brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 150,
+  "y": 80,
+  "wires": [
+   [
+    "aq_cache"
+   ]
+  ]
+ },
+ {
+  "id": "aq_in2",
+  "type": "mqtt in",
+  "z": "aq_tab",
+  "name": "ESP32-CAM results",
+  "topic": "edgeimpulse/results",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "aq_brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 150,
+  "y": 140,
+  "wires": [
+   [
+    "aq_cache"
+   ]
+  ]
+ },
+ {
+  "id": "aq_cache",
+  "type": "function",
+  "z": "aq_tab",
+  "name": "remember + forward",
+  "func": "// Keep the latest value of every topic, a soil history and decision counters,\n// then forward the message to the browser page.\nconst cache = flow.get('cache') || {};\ncache[msg.topic] = String(msg.payload);\nflow.set('cache', cache);\nif (msg.topic === 'iotfrontier/soil') {\n  const hist = flow.get('hist') || [];\n  hist.push({ ts: Date.now(), v: Number(msg.payload) });\n  while (hist.length > 180) hist.shift();\n  flow.set('hist', hist);\n}\nif (msg.topic === 'iotfrontier/event') {\n  const c = flow.get('counters') || { shots: 0, heat: 0 };\n  const p = String(msg.payload);\n  if (p.startsWith('pump on')) c.shots++;\n  if (p.startsWith('delayed')) c.heat++;\n  flow.set('counters', c);\n}\nreturn { payload: JSON.stringify({ t: msg.topic, p: String(msg.payload) }) };",
+  "outputs": 1,
+  "x": 400,
+  "y": 110,
+  "wires": [
+   [
+    "aq_wsout"
+   ]
+  ]
+ },
+ {
+  "id": "aq_wsout",
+  "type": "websocket out",
+  "z": "aq_tab",
+  "name": "to page",
+  "server": "aq_wsl",
+  "client": "",
+  "x": 640,
+  "y": 110,
+  "wires": []
+ },
+ {
+  "id": "aq_wsin",
+  "type": "websocket in",
+  "z": "aq_tab",
+  "name": "from page",
+  "server": "aq_wsl",
+  "client": "",
+  "x": 140,
+  "y": 220,
+  "wires": [
+   [
+    "aq_cmd"
+   ]
+  ]
+ },
+ {
+  "id": "aq_cmd",
+  "type": "function",
+  "z": "aq_tab",
+  "name": "hello or command",
+  "func": "// Messages from the browser page: \"hello\" asks for the current state,\n// anything else is a command that goes to the node over MQTT.\nlet m;\ntry { m = JSON.parse(msg.payload); } catch (e) { return null; }\nif (m.t === 'hello') {\n  const out = [];\n  const cache = flow.get('cache') || {};\n  for (const t of Object.keys(cache)) {\n    out.push({ _session: msg._session, payload: JSON.stringify({ t: t, p: cache[t], replay: true }) });\n  }\n  out.push({ _session: msg._session, payload: JSON.stringify({ t: 'history', p: JSON.stringify(flow.get('hist') || []) }) });\n  out.push({ _session: msg._session, payload: JSON.stringify({ t: 'counters', p: JSON.stringify(flow.get('counters') || { shots: 0, heat: 0 }) }) });\n  return [null, out];\n}\nconst allowed = ['iotfrontier/pump', 'iotfrontier/mode', 'iotfrontier/threshold', 'iotfrontier/leaf'];\nif (!allowed.includes(m.t)) return null;\nreturn [{ topic: m.t, payload: String(m.p) }, null];",
+  "outputs": 2,
+  "x": 380,
+  "y": 220,
+  "wires": [
+   [
+    "aq_mqout"
+   ],
+   [
+    "aq_wsout"
+   ]
+  ]
+ },
+ {
+  "id": "aq_mqout",
+  "type": "mqtt out",
+  "z": "aq_tab",
+  "name": "commands to node",
+  "topic": "",
+  "qos": "1",
+  "retain": "false",
+  "broker": "aq_brk",
+  "x": 640,
+  "y": 200,
+  "wires": []
+ },
+ {
+  "id": "aq_http",
+  "type": "http in",
+  "z": "aq_tab",
+  "name": "GET /farm",
+  "url": "/farm",
+  "method": "get",
+  "upload": false,
+  "x": 140,
+  "y": 300,
+  "wires": [
+   [
+    "aq_tpl"
+   ]
+  ]
+ },
+ {
+  "id": "aq_tpl",
+  "type": "template",
+  "z": "aq_tab",
+  "name": "AquaCity page",
+  "field": "payload",
+  "fieldType": "msg",
+  "format": "html",
+  "syntax": "plain",
+  "template": "<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>AquaCity Control Room</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap\">\n<style>\n/* Layout: control-room grid. Hero soil ring + KPI tiles, then trend + live log, then controls + AI. */\n:root {\n  --bg: #0a1519; --panel: #10212a; --panel-2: #142a35; --line: #1f3a46;\n  --ink: #e6f1f3; --muted: #8ba7b0; --water: #39b6e6; --water-soft: rgba(57,182,230,.16);\n  --leaf: #6ccf8e; --heat: #f0a24a; --alert: #ff6b5b;\n  --f-display: \"Bricolage Grotesque\", \"Segoe UI\", system-ui, sans-serif;\n  --f-body: \"Manrope\", \"Segoe UI\", system-ui, sans-serif;\n  --f-num: \"JetBrains Mono\", Consolas, ui-monospace, monospace;\n  color-scheme: dark;\n}\n* { box-sizing: border-box; }\nhtml, body { margin: 0; }\nbody {\n  background: radial-gradient(1200px 600px at 80% -10%, #12313d 0%, var(--bg) 60%) fixed, var(--bg);\n  color: var(--ink); font-family: var(--f-body); font-size: 15px; min-height: 100vh;\n}\n.wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; display: flex; flex-direction: column; gap: 16px; }\nheader { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }\n.brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }\n.logo { width: 42px; height: 42px; border-radius: 12px; background: var(--water-soft); display: grid; place-items: center; }\n.brand h1 { font-family: var(--f-display); font-weight: 800; font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; }\n.brand p { margin: 0; color: var(--muted); font-size: .85rem; }\n.pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); font-size: .85rem; font-weight: 600; white-space: nowrap; }\n.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }\n.pill.on .dot { background: var(--leaf); box-shadow: 0 0 0 4px rgba(108,207,142,.18); }\n.pill.off .dot { background: var(--alert); }\n.clock { font-family: var(--f-num); color: var(--muted); font-size: .9rem; }\n\n.grid { display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }\n.card { background: linear-gradient(180deg, var(--panel-2), var(--panel)); border: 1px solid var(--line); border-radius: 18px; padding: 18px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }\n.card h2 { font-family: var(--f-display); font-weight: 600; font-size: 1rem; margin: 0; color: var(--muted); letter-spacing: .02em; }\n.span-5 { grid-column: span 5; } .span-7 { grid-column: span 7; } .span-8 { grid-column: span 8; } .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; }\n@media (max-width: 980px) { .span-5, .span-7, .span-8, .span-4, .span-6 { grid-column: span 12; } }\n\n.hero { flex-direction: row; align-items: center; gap: 24px; flex-wrap: wrap; }\n.ring { position: relative; width: 220px; height: 220px; flex: none; }\n.ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }\n.ring .center { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }\n.big { font-family: var(--f-num); font-weight: 700; font-size: 3.4rem; line-height: 1; }\n.big small { font-size: 1.2rem; color: var(--muted); }\n.ring-label { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; margin-top: 6px; }\n.hero-text { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 10px; }\n.state { font-family: var(--f-display); font-weight: 800; font-size: 1.7rem; line-height: 1.15; }\n.state.dry { color: var(--heat); } .state.ok { color: var(--leaf); } .state.wet { color: var(--water); }\n.hint { color: var(--muted); max-width: 42ch; line-height: 1.5; }\n.pump-badge { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); font-weight: 700; }\n.pump-badge.on { border-color: var(--water); color: var(--water); }\n.pump-badge.on svg { animation: drip 1s ease-in-out infinite; }\n@keyframes drip { 0%,100% { transform: translateY(0); } 50% { transform: translateY(3px); } }\n\n.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }\n.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 4px; }\n.tile .k { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }\n.tile .v { font-family: var(--f-num); font-weight: 700; font-size: 2rem; }\n.tile .v small { font-size: 1rem; color: var(--muted); font-weight: 500; }\n.tile .s { font-size: .82rem; color: var(--muted); }\n.tag { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: .82rem; padding: 3px 9px; border-radius: 999px; width: fit-content; }\n.tag.low { background: rgba(108,207,142,.14); color: var(--leaf); }\n.tag.high { background: rgba(240,162,74,.16); color: var(--heat); }\n\n.chart-box { position: relative; width: 100%; height: 240px; }\n.chart-box svg { width: 100%; height: 100%; display: block; }\n.axis text { fill: var(--muted); font-family: var(--f-num); font-size: 11px; }\n.tip { position: absolute; pointer-events: none; background: #061015; border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; font-family: var(--f-num); font-size: .8rem; white-space: nowrap; transform: translate(-50%, -120%); }\n.legend { display: flex; gap: 16px; color: var(--muted); font-size: .8rem; }\n.legend i { display: inline-block; width: 16px; height: 2px; vertical-align: middle; margin-right: 6px; }\n\n.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }\n.log li { display: grid; grid-template-columns: 58px 1fr; gap: 10px; font-size: .9rem; padding-bottom: 8px; border-bottom: 1px solid var(--line); }\n.log time { font-family: var(--f-num); color: var(--muted); font-size: .8rem; padding-top: 2px; }\n.log .empty { color: var(--muted); display: block; grid-column: 1 / -1; }\n\n.ctl { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }\n.ctl:last-child { border-bottom: none; }\n.ctl label { font-weight: 600; }\n.ctl .sub { display: block; color: var(--muted); font-size: .8rem; font-weight: 400; }\n.switch { position: relative; width: 56px; height: 30px; border-radius: 999px; background: var(--line); border: none; cursor: pointer; flex: none; transition: background .2s; }\n.switch::after { content: \"\"; position: absolute; top: 4px; left: 4px; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); transition: transform .2s; }\n.switch[aria-checked=\"true\"] { background: var(--water); }\n.switch[aria-checked=\"true\"]::after { transform: translateX(26px); }\n.btn { font: inherit; font-weight: 700; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 10px 16px; cursor: pointer; }\n.btn:hover { border-color: var(--water); }\n.btn.primary { background: var(--water); color: #04212c; border-color: var(--water); }\n.btn.green { border-color: rgba(108,207,142,.5); color: var(--leaf); }\n.btn.yellow { border-color: rgba(240,200,74,.5); color: #f0c84a; }\n.btn:focus-visible, .switch:focus-visible, input:focus-visible { outline: 3px solid var(--water); outline-offset: 2px; }\ninput[type=range] { width: min(180px, 36vw); accent-color: var(--water); }\n.thr { font-family: var(--f-num); font-weight: 700; min-width: 3.5ch; text-align: right; }\n.leaf-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }\n.diag { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; min-height: 72px; }\n.diag .k { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }\n.diag .v { font-weight: 700; font-size: 1.05rem; margin-top: 4px; line-height: 1.4; }\n.foot { color: var(--muted); font-size: .8rem; text-align: center; }\n@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }\n</style>\n</head>\n<body>\n<div class=\"wrap\">\n  <header>\n    <div class=\"brand\">\n      <div class=\"logo\" aria-hidden=\"true\">\n        <svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\"><path d=\"M12 2C8 7.5 6 10.6 6 14a6 6 0 0 0 12 0c0-3.4-2-6.5-6-12z\" fill=\"#39b6e6\"/><path d=\"M9.5 15a2.5 2.5 0 0 0 2.5 2.5\" stroke=\"#e6f1f3\" stroke-width=\"1.6\" fill=\"none\" stroke-linecap=\"round\"/></svg>\n      </div>\n      <div>\n        <h1>AquaCity</h1>\n        <p>Smart irrigation for city green areas · Zone 1, roundabout</p>\n      </div>\n    </div>\n    <span class=\"pill\" id=\"nodePill\"><span class=\"dot\"></span><span id=\"nodeTxt\">Node: waiting…</span></span>\n    <span class=\"pill\" id=\"modePill\"><span id=\"modeTxt\">Mode: –</span></span>\n    <span class=\"clock\" id=\"clock\">--:--:--</span>\n  </header>\n\n  <div class=\"grid\">\n    <section class=\"card hero span-7\" aria-label=\"Soil moisture\">\n      <div class=\"ring\">\n        <svg viewBox=\"0 0 220 220\" aria-hidden=\"true\">\n          <circle cx=\"110\" cy=\"110\" r=\"92\" fill=\"none\" stroke=\"#1f3a46\" stroke-width=\"16\"/>\n          <circle id=\"ringArc\" cx=\"110\" cy=\"110\" r=\"92\" fill=\"none\" stroke=\"#39b6e6\" stroke-width=\"16\" stroke-linecap=\"round\" stroke-dasharray=\"0 578\"/>\n          <line id=\"ringThr\" x1=\"110\" y1=\"6\" x2=\"110\" y2=\"34\" stroke=\"#f0a24a\" stroke-width=\"3\" stroke-linecap=\"round\" transform=\"rotate(0 110 110)\"/>\n        </svg>\n        <div class=\"center\"><div><div class=\"big\"><span id=\"soilVal\">--</span><small>%</small></div><div class=\"ring-label\">soil moisture</div></div></div>\n      </div>\n      <div class=\"hero-text\">\n        <div class=\"state\" id=\"soilState\">Waiting for data</div>\n        <div class=\"hint\" id=\"soilHint\">The node waters only when the soil is below the threshold (orange mark), and not when hot, dry air would evaporate the water.</div>\n        <div class=\"pump-badge\" id=\"pumpBadge\">\n          <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 2C8 7.5 6 10.6 6 14a6 6 0 0 0 12 0c0-3.4-2-6.5-6-12z\" fill=\"currentColor\"/></svg>\n          <span id=\"pumpTxt\">Pump: –</span>\n        </div>\n      </div>\n    </section>\n\n    <section class=\"card span-5\" aria-label=\"Climate and water\">\n      <h2>Climate &amp; water</h2>\n      <div class=\"tiles\">\n        <div class=\"tile\"><span class=\"k\">Air temperature</span><span class=\"v\"><span id=\"tVal\">--</span><small> °C</small></span></div>\n        <div class=\"tile\"><span class=\"k\">Air humidity</span><span class=\"v\"><span id=\"hVal\">--</span><small> %</small></span></div>\n        <div class=\"tile\"><span class=\"k\">Evaporation risk</span><span class=\"tag low\" id=\"evapTag\">Low</span><span class=\"s\" id=\"evapTxt\">Good time to water</span></div>\n        <div class=\"tile\"><span class=\"k\">Water used</span><span class=\"v\"><span id=\"wVal\">0</span><small> mL</small></span><span class=\"s\" id=\"shotsTxt\">0 watering shots · 0 delayed by heat</span></div>\n      </div>\n    </section>\n\n    <section class=\"card span-8\" aria-label=\"Soil moisture trend\">\n      <h2>Soil moisture, live trend</h2>\n      <div class=\"legend\"><span><i style=\"background:#39b6e6\"></i>Soil moisture (%)</span><span><i style=\"background:#f0a24a\"></i>Watering threshold</span></div>\n      <div class=\"chart-box\" id=\"chartBox\">\n        <svg id=\"chart\" role=\"img\" aria-label=\"Soil moisture over time with the watering threshold\"></svg>\n        <div class=\"tip\" id=\"tip\" hidden></div>\n      </div>\n    </section>\n\n    <section class=\"card span-4\" aria-label=\"Live decisions\">\n      <h2>Live decisions</h2>\n      <ul class=\"log\" id=\"log\"><li><span class=\"empty\">Decisions from the node appear here.</span></li></ul>\n    </section>\n\n    <section class=\"card span-6\" aria-label=\"Irrigation control\">\n      <h2>Irrigation control</h2>\n      <div>\n        <div class=\"ctl\"><label for=\"autoSw\">Automatic watering<span class=\"sub\">The node decides by itself</span></label><button class=\"switch\" id=\"autoSw\" role=\"switch\" aria-checked=\"false\"></button></div>\n        <div class=\"ctl\"><label>Manual pump<span class=\"sub\">Switches to manual mode, stops alone after 30 s</span></label><span style=\"display:flex;gap:8px\"><button class=\"btn primary\" id=\"pumpOn\">Water now</button><button class=\"btn\" id=\"pumpOff\">Stop</button></span></div>\n        <div class=\"ctl\"><label for=\"thr\">Water when soil is below<span class=\"sub\">The AI leaf check can move this too</span></label><span style=\"display:flex;align-items:center;gap:10px\"><input type=\"range\" id=\"thr\" min=\"10\" max=\"80\" step=\"1\" value=\"35\"><span class=\"thr\" id=\"thrVal\">35%</span></span></div>\n      </div>\n    </section>\n\n    <section class=\"card span-6\" aria-label=\"AI leaf check\">\n      <h2>AI leaf check · Edge Impulse</h2>\n      <div class=\"leaf-btns\">\n        <button class=\"btn green\" id=\"leafG\">Leaf looks GREEN</button>\n        <button class=\"btn yellow\" id=\"leafY\">Leaf looks YELLOW</button>\n      </div>\n      <div class=\"diag\"><div class=\"k\">Diagnosis</div><div class=\"v\" id=\"diag\">Run the model on the phone, then press the result.</div></div>\n    </section>\n  </div>\n  <p class=\"foot\">Data over MQTT from the NodeMCU node · local network, no cloud needed</p>\n</div>\n\n<script>\n(function () {\n  var $ = function (id) { return document.getElementById(id); };\n  var ws, state = { soil: null, thr: 35, t: null, h: null, pump: 'OFF', mode: '–', status: null, lastData: 0 };\n  var hist = [];\n  var counters = { shots: 0, heat: 0 };\n\n  function send(t, p) { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: t, p: String(p) })); }\n\n  function connect() {\n    var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';\n    ws = new WebSocket(proto + location.host + '/ws/farm');\n    ws.onopen = function () { send('hello', 1); };\n    ws.onmessage = function (ev) { try { handle(JSON.parse(ev.data)); } catch (e) {} };\n    ws.onclose = function () { setNode(false, 'Dashboard reconnecting…'); setTimeout(connect, 2000); };\n  }\n\n  function addLog(text) {\n    var log = $('log');\n    if (log.querySelector('.empty')) log.innerHTML = '';\n    var li = document.createElement('li');\n    var tm = document.createElement('time');\n    tm.textContent = new Date().toTimeString().slice(0, 5);\n    var sp = document.createElement('span');\n    sp.textContent = text;\n    li.appendChild(tm); li.appendChild(sp);\n    log.insertBefore(li, log.firstChild);\n    while (log.children.length > 30) log.removeChild(log.lastChild);\n  }\n\n  function handle(m) {\n    var t = m.t, p = m.p;\n    if (t === 'history') { try { hist = JSON.parse(p); } catch (e) {} drawChart(); return; }\n    if (t === 'counters') { try { counters = JSON.parse(p); } catch (e) {} renderCounters(); return; }\n    if (t === 'replay') return;\n    var key = t.replace('iotfrontier/', '');\n    if (key === 'soil') { state.soil = +p; state.lastData = Date.now(); hist.push({ ts: Date.now(), v: +p }); if (hist.length > 180) hist.shift(); drawChart(); }\n    else if (key === 'temperature') { state.t = +p; state.lastData = Date.now(); }\n    else if (key === 'humidity') { state.h = +p; }\n    else if (key === 'threshold/state') { state.thr = +p; $('thr').value = p; $('thrVal').textContent = p + '%'; drawChart(); }\n    else if (key === 'pump/state') { state.pump = p; }\n    else if (key === 'mode/state') { state.mode = p; }\n    else if (key === 'status') { state.status = p; }\n    else if (key === 'water_used_ml') { $('wVal').textContent = p; }\n    else if (key === 'diagnosis') { $('diag').textContent = p; }\n    else if (key === 'event') {\n      if (!m.replay) {\n        addLog(p);\n        if (p.indexOf('pump on') === 0) counters.shots++;\n        if (p.indexOf('delayed') === 0) counters.heat++;\n        renderCounters();\n      }\n    }\n    render();\n  }\n\n  function renderCounters() {\n    $('shotsTxt').textContent = counters.shots + ' watering shots · ' + counters.heat + ' delayed by heat';\n  }\n\n  function setNode(ok, txt) {\n    $('nodePill').className = 'pill ' + (ok ? 'on' : 'off');\n    $('nodeTxt').textContent = txt;\n  }\n\n  function render() {\n    var fresh = Date.now() - state.lastData < 20000;\n    if (state.status === 'online' && fresh) setNode(true, 'Node online');\n    else if (state.status === 'offline') setNode(false, 'Node offline');\n    else if (state.lastData) setNode(fresh, fresh ? 'Node online' : 'No data for 20 s');\n\n    $('modeTxt').textContent = 'Mode: ' + (state.mode === 'AUTO' ? 'Automatic' : state.mode === 'MANUAL' ? 'Manual' : '–');\n    $('autoSw').setAttribute('aria-checked', state.mode === 'AUTO' ? 'true' : 'false');\n\n    var on = state.pump === 'ON';\n    $('pumpBadge').className = 'pump-badge' + (on ? ' on' : '');\n    $('pumpTxt').textContent = on ? 'Pump: watering' : 'Pump: off';\n\n    if (state.t !== null) $('tVal').textContent = state.t.toFixed(1);\n    if (state.h !== null) $('hVal').textContent = Math.round(state.h);\n    var hot = state.t !== null && state.t > 30 && state.h < 30;\n    $('evapTag').className = 'tag ' + (hot ? 'high' : 'low');\n    $('evapTag').textContent = hot ? 'High' : 'Low';\n    $('evapTxt').textContent = hot ? 'Hot and dry air: watering waits' : 'Good time to water';\n\n    var C = 2 * Math.PI * 92;\n    if (state.soil !== null) {\n      var s = Math.max(0, Math.min(100, state.soil));\n      $('soilVal').textContent = Math.round(s);\n      $('ringArc').setAttribute('stroke-dasharray', (C * s / 100) + ' ' + C);\n      var st = $('soilState'), hint = $('soilHint');\n      if (s < state.thr) {\n        st.className = 'state dry';\n        st.textContent = hot ? 'Dry, waiting for cooler air' : 'Dry, watering';\n        hint.textContent = hot ? 'The soil needs water, but in this heat most of it would evaporate. The node waits unless the soil drops below 15%.' : 'Soil is below the threshold. The node waters in 5 s shots with a 30 s soak.';\n      } else if (s >= state.thr + 20) {\n        st.className = 'state wet'; st.textContent = 'Well watered';\n        hint.textContent = 'No watering needed. Every skipped watering is water saved.';\n      } else {\n        st.className = 'state ok'; st.textContent = 'Healthy moisture';\n        hint.textContent = 'Soil is between the threshold and the target. The pump stays off.';\n      }\n    }\n    $('ringThr').setAttribute('transform', 'rotate(' + (state.thr * 3.6) + ' 110 110)');\n  }\n\n  function drawChart() {\n    var svg = $('chart'), box = $('chartBox');\n    var W = box.clientWidth, H = box.clientHeight, L = 36, R = 10, T = 10, B = 24;\n    var iw = W - L - R, ih = H - T - B;\n    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);\n    var y = function (v) { return T + ih - (v / 100) * ih; };\n    var out = '<g class=\"axis\">';\n    [0, 25, 50, 75, 100].forEach(function (v) {\n      out += '<line x1=\"' + L + '\" x2=\"' + (W - R) + '\" y1=\"' + y(v) + '\" y2=\"' + y(v) + '\" stroke=\"#1f3a46\" stroke-width=\"1\"/>';\n      out += '<text x=\"' + (L - 8) + '\" y=\"' + (y(v) + 4) + '\" text-anchor=\"end\">' + v + '</text>';\n    });\n    out += '</g>';\n    out += '<line x1=\"' + L + '\" x2=\"' + (W - R) + '\" y1=\"' + y(state.thr) + '\" y2=\"' + y(state.thr) + '\" stroke=\"#f0a24a\" stroke-width=\"2\" stroke-dasharray=\"6 5\"/>';\n    if (hist.length > 1) {\n      var t0 = hist[0].ts, t1 = hist[hist.length - 1].ts, span = Math.max(1, t1 - t0);\n      var x = function (ts) { return L + (ts - t0) / span * iw; };\n      var d = hist.map(function (pt, i) { return (i ? 'L' : 'M') + x(pt.ts).toFixed(1) + ' ' + y(pt.v).toFixed(1); }).join(' ');\n      out += '<path d=\"' + d + ' L' + x(t1) + ' ' + y(0) + ' L' + L + ' ' + y(0) + ' Z\" fill=\"rgba(57,182,230,.12)\"/>';\n      out += '<path d=\"' + d + '\" fill=\"none\" stroke=\"#39b6e6\" stroke-width=\"2\" stroke-linejoin=\"round\"/>';\n      var last = hist[hist.length - 1];\n      out += '<circle cx=\"' + x(last.ts) + '\" cy=\"' + y(last.v) + '\" r=\"5\" fill=\"#39b6e6\" stroke=\"#10212a\" stroke-width=\"2\"/>';\n      out += '<g class=\"axis\"><text x=\"' + L + '\" y=\"' + (H - 6) + '\">' + new Date(t0).toTimeString().slice(0, 5) + '</text><text x=\"' + (W - R) + '\" y=\"' + (H - 6) + '\" text-anchor=\"end\">' + new Date(t1).toTimeString().slice(0, 5) + '</text></g>';\n      out += '<line id=\"cross\" x1=\"0\" x2=\"0\" y1=\"' + T + '\" y2=\"' + (T + ih) + '\" stroke=\"#8ba7b0\" stroke-width=\"1\" visibility=\"hidden\"/>';\n      svg.__x = x; svg.__t0 = t0; svg.__span = span; svg.__L = L; svg.__iw = iw; svg.__y = y;\n    } else {\n      out += '<text x=\"' + (W / 2) + '\" y=\"' + (H / 2) + '\" text-anchor=\"middle\" fill=\"#8ba7b0\" font-size=\"13\">Waiting for soil readings…</text>';\n    }\n    svg.innerHTML = out;\n  }\n\n  $('chartBox').addEventListener('mousemove', function (e) {\n    var svg = $('chart');\n    if (hist.length < 2 || !svg.__x) return;\n    var r = svg.getBoundingClientRect(), mx = e.clientX - r.left;\n    var ts = svg.__t0 + (mx - svg.__L) / svg.__iw * svg.__span, best = hist[0];\n    hist.forEach(function (p) { if (Math.abs(p.ts - ts) < Math.abs(best.ts - ts)) best = p; });\n    var cx = svg.__x(best.ts), cross = document.getElementById('cross');\n    if (cross) { cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.setAttribute('visibility', 'visible'); }\n    var tip = $('tip'); tip.hidden = false;\n    tip.style.left = cx + 'px'; tip.style.top = svg.__y(best.v) + 'px';\n    tip.textContent = new Date(best.ts).toTimeString().slice(0, 8) + '  ' + best.v + '%';\n  });\n  $('chartBox').addEventListener('mouseleave', function () {\n    $('tip').hidden = true; var c = document.getElementById('cross'); if (c) c.setAttribute('visibility', 'hidden');\n  });\n\n  $('autoSw').addEventListener('click', function () { send('iotfrontier/mode', state.mode === 'AUTO' ? 'MANUAL' : 'AUTO'); });\n  $('pumpOn').addEventListener('click', function () { send('iotfrontier/pump', 'ON'); });\n  $('pumpOff').addEventListener('click', function () { send('iotfrontier/pump', 'OFF'); });\n  $('thr').addEventListener('input', function () { $('thrVal').textContent = this.value + '%'; });\n  $('thr').addEventListener('change', function () { send('iotfrontier/threshold', this.value); });\n  $('leafG').addEventListener('click', function () { send('iotfrontier/leaf', 'green'); addLog('Leaf check sent: green'); });\n  $('leafY').addEventListener('click', function () { send('iotfrontier/leaf', 'yellow'); addLog('Leaf check sent: yellow'); });\n\n  setInterval(function () { $('clock').textContent = new Date().toTimeString().slice(0, 8); render(); }, 1000);\n  window.addEventListener('resize', drawChart);\n  drawChart(); render(); connect();\n})();\n</script>\n</body>\n</html>\n",
+  "output": "str",
+  "x": 360,
+  "y": 300,
+  "wires": [
+   [
+    "aq_resp"
+   ]
+  ]
+ },
+ {
+  "id": "aq_resp",
+  "type": "http response",
+  "z": "aq_tab",
+  "name": "",
+  "statusCode": "",
+  "headers": {
+   "content-type": "text/html; charset=utf-8"
+  },
+  "x": 560,
+  "y": 300,
+  "wires": []
+ }
+]

@@ -1,0 +1,813 @@
+[
+ {
+  "id": "brk",
+  "type": "mqtt-broker",
+  "name": "Local Mosquitto",
+  "broker": "localhost",
+  "port": "1883",
+  "clientid": "nodered-dashboard",
+  "autoConnect": true,
+  "usetls": false,
+  "protocolVersion": "4",
+  "keepalive": "30",
+  "cleansession": true,
+  "birthTopic": "",
+  "closeTopic": "",
+  "willTopic": ""
+ },
+ {
+  "id": "tab",
+  "type": "ui_tab",
+  "name": "Smart Farm",
+  "icon": "dashboard",
+  "order": 1,
+  "disabled": false,
+  "hidden": false
+ },
+ {
+  "id": "gLive",
+  "type": "ui_group",
+  "name": "Live sensors",
+  "tab": "tab",
+  "order": 1,
+  "disp": true,
+  "width": "6",
+  "collapse": false
+ },
+ {
+  "id": "gCtl",
+  "type": "ui_group",
+  "name": "Irrigation control",
+  "tab": "tab",
+  "order": 2,
+  "disp": true,
+  "width": "6",
+  "collapse": false
+ },
+ {
+  "id": "gAI",
+  "type": "ui_group",
+  "name": "AI leaf check",
+  "tab": "tab",
+  "order": 3,
+  "disp": true,
+  "width": "6",
+  "collapse": false
+ },
+ {
+  "id": "flow",
+  "type": "tab",
+  "label": "Smart Farm",
+  "disabled": false,
+  "info": "Dashboard for the smart irrigation prototype. Open /ui"
+ },
+ {
+  "id": "inT",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/temperature",
+  "topic": "iotfrontier/temperature",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 100,
+  "wires": [
+   [
+    "gT"
+   ]
+  ]
+ },
+ {
+  "id": "gT",
+  "type": "ui_gauge",
+  "z": "flow",
+  "name": "Air temp",
+  "group": "gLive",
+  "order": 1,
+  "width": 3,
+  "height": 3,
+  "gtype": "gage",
+  "title": "Air temp",
+  "label": "°C",
+  "format": "{{value}}",
+  "min": 0,
+  "max": 50,
+  "colors": [
+   "#ca3838",
+   "#e6e600",
+   "#00b500"
+  ],
+  "seg1": "",
+  "seg2": "",
+  "x": 520,
+  "y": 100,
+  "wires": []
+ },
+ {
+  "id": "inH",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/humidity",
+  "topic": "iotfrontier/humidity",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 160,
+  "wires": [
+   [
+    "gH"
+   ]
+  ]
+ },
+ {
+  "id": "gH",
+  "type": "ui_gauge",
+  "z": "flow",
+  "name": "Air humidity",
+  "group": "gLive",
+  "order": 2,
+  "width": 3,
+  "height": 3,
+  "gtype": "gage",
+  "title": "Air humidity",
+  "label": "%",
+  "format": "{{value}}",
+  "min": 0,
+  "max": 100,
+  "colors": [
+   "#ca3838",
+   "#e6e600",
+   "#00b500"
+  ],
+  "seg1": "",
+  "seg2": "",
+  "x": 520,
+  "y": 160,
+  "wires": []
+ },
+ {
+  "id": "inS",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/soil",
+  "topic": "iotfrontier/soil",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 220,
+  "wires": [
+   [
+    "gS",
+    "toNum"
+   ]
+  ]
+ },
+ {
+  "id": "gS",
+  "type": "ui_gauge",
+  "z": "flow",
+  "name": "Soil moisture",
+  "group": "gLive",
+  "order": 3,
+  "width": 3,
+  "height": 3,
+  "gtype": "gage",
+  "title": "Soil moisture",
+  "label": "%",
+  "format": "{{value}}",
+  "min": 0,
+  "max": 100,
+  "colors": [
+   "#ca3838",
+   "#e6e600",
+   "#00b500"
+  ],
+  "seg1": "30",
+  "seg2": "60",
+  "x": 520,
+  "y": 220,
+  "wires": []
+ },
+ {
+  "id": "toNum",
+  "type": "change",
+  "z": "flow",
+  "name": "to number",
+  "rules": [
+   {
+    "t": "set",
+    "p": "payload",
+    "pt": "msg",
+    "to": "$number(payload)",
+    "tot": "jsonata"
+   }
+  ],
+  "x": 520,
+  "y": 280,
+  "wires": [
+   [
+    "chS"
+   ]
+  ]
+ },
+ {
+  "id": "chS",
+  "type": "ui_chart",
+  "z": "flow",
+  "name": "Soil history",
+  "group": "gLive",
+  "order": 5,
+  "width": 6,
+  "height": 4,
+  "label": "Soil moisture, last hour (%)",
+  "chartType": "line",
+  "legend": "false",
+  "xformat": "HH:mm",
+  "interpolate": "linear",
+  "nodata": "waiting for data",
+  "dot": false,
+  "ymin": "0",
+  "ymax": "100",
+  "removeOlder": 1,
+  "removeOlderPoints": "",
+  "removeOlderUnit": "3600",
+  "cutout": 0,
+  "useOneColor": false,
+  "useUTC": false,
+  "colors": [
+   "#1f77b4"
+  ],
+  "outputs": 1,
+  "useDifferentColor": false,
+  "x": 700,
+  "y": 280,
+  "wires": [
+   []
+  ]
+ },
+ {
+  "id": "inW",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/waterlevel",
+  "topic": "iotfrontier/waterlevel",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 340,
+  "wires": [
+   [
+    "gW"
+   ]
+  ]
+ },
+ {
+  "id": "gW",
+  "type": "ui_gauge",
+  "z": "flow",
+  "name": "Tank level",
+  "group": "gLive",
+  "order": 4,
+  "width": 3,
+  "height": 3,
+  "gtype": "gage",
+  "title": "Tank level",
+  "label": "%",
+  "format": "{{value}}",
+  "min": 0,
+  "max": 100,
+  "colors": [
+   "#ca3838",
+   "#e6e600",
+   "#00b500"
+  ],
+  "seg1": "15",
+  "seg2": "40",
+  "x": 520,
+  "y": 340,
+  "wires": []
+ },
+ {
+  "id": "inSt",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/status",
+  "topic": "iotfrontier/status",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 400,
+  "wires": [
+   [
+    "tSt"
+   ]
+  ]
+ },
+ {
+  "id": "tSt",
+  "type": "ui_text",
+  "z": "flow",
+  "group": "gCtl",
+  "order": 1,
+  "width": 6,
+  "height": 1,
+  "name": "Controller",
+  "label": "Controller",
+  "format": "{{msg.payload}}",
+  "layout": "row-spread",
+  "x": 520,
+  "y": 400,
+  "wires": []
+ },
+ {
+  "id": "inM",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/mode/state",
+  "topic": "iotfrontier/mode/state",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 460,
+  "wires": [
+   [
+    "swM"
+   ]
+  ]
+ },
+ {
+  "id": "swM",
+  "type": "ui_switch",
+  "z": "flow",
+  "name": "Auto mode",
+  "label": "Automatic watering",
+  "group": "gCtl",
+  "order": 2,
+  "width": 6,
+  "height": 1,
+  "passthru": false,
+  "decouple": "true",
+  "topic": "",
+  "topicType": "str",
+  "style": "",
+  "onvalue": "AUTO",
+  "onvalueType": "str",
+  "offvalue": "MANUAL",
+  "offvalueType": "str",
+  "x": 520,
+  "y": 460,
+  "wires": [
+   [
+    "outM"
+   ]
+  ]
+ },
+ {
+  "id": "outM",
+  "type": "mqtt out",
+  "z": "flow",
+  "name": "iotfrontier/mode",
+  "topic": "iotfrontier/mode",
+  "qos": "1",
+  "retain": "false",
+  "broker": "brk",
+  "x": 800,
+  "y": 460,
+  "wires": []
+ },
+ {
+  "id": "inP",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/pump/state",
+  "topic": "iotfrontier/pump/state",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 520,
+  "wires": [
+   [
+    "swP",
+    "tP"
+   ]
+  ]
+ },
+ {
+  "id": "swP",
+  "type": "ui_switch",
+  "z": "flow",
+  "name": "Pump",
+  "label": "Pump (switches to manual)",
+  "group": "gCtl",
+  "order": 3,
+  "width": 6,
+  "height": 1,
+  "passthru": false,
+  "decouple": "true",
+  "topic": "",
+  "topicType": "str",
+  "style": "",
+  "onvalue": "ON",
+  "onvalueType": "str",
+  "offvalue": "OFF",
+  "offvalueType": "str",
+  "x": 520,
+  "y": 520,
+  "wires": [
+   [
+    "outP"
+   ]
+  ]
+ },
+ {
+  "id": "outP",
+  "type": "mqtt out",
+  "z": "flow",
+  "name": "iotfrontier/pump",
+  "topic": "iotfrontier/pump",
+  "qos": "1",
+  "retain": "false",
+  "broker": "brk",
+  "x": 800,
+  "y": 520,
+  "wires": []
+ },
+ {
+  "id": "tP",
+  "type": "ui_text",
+  "z": "flow",
+  "group": "gCtl",
+  "order": 4,
+  "width": 6,
+  "height": 1,
+  "name": "Pump is",
+  "label": "Pump is",
+  "format": "{{msg.payload}}",
+  "layout": "row-spread",
+  "x": 520,
+  "y": 560,
+  "wires": []
+ },
+ {
+  "id": "inTh",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/threshold/state",
+  "topic": "iotfrontier/threshold/state",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 620,
+  "wires": [
+   [
+    "slT"
+   ]
+  ]
+ },
+ {
+  "id": "slT",
+  "type": "ui_slider",
+  "z": "flow",
+  "name": "Dry threshold",
+  "label": "Water when soil is below (%)",
+  "tooltip": "",
+  "group": "gCtl",
+  "order": 5,
+  "width": 6,
+  "height": 1,
+  "passthru": false,
+  "outs": "end",
+  "topic": "",
+  "topicType": "str",
+  "min": "10",
+  "max": "80",
+  "step": "1",
+  "x": 520,
+  "y": 620,
+  "wires": [
+   [
+    "outTh"
+   ]
+  ]
+ },
+ {
+  "id": "outTh",
+  "type": "mqtt out",
+  "z": "flow",
+  "name": "iotfrontier/threshold",
+  "topic": "iotfrontier/threshold",
+  "qos": "1",
+  "retain": "false",
+  "broker": "brk",
+  "x": 800,
+  "y": 620,
+  "wires": []
+ },
+ {
+  "id": "inU",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/water_used_ml",
+  "topic": "iotfrontier/water_used_ml",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 680,
+  "wires": [
+   [
+    "tU"
+   ]
+  ]
+ },
+ {
+  "id": "tU",
+  "type": "ui_text",
+  "z": "flow",
+  "group": "gCtl",
+  "order": 6,
+  "width": 6,
+  "height": 1,
+  "name": "Water used",
+  "label": "Water used",
+  "format": "{{msg.payload}} mL",
+  "layout": "row-spread",
+  "x": 520,
+  "y": 680,
+  "wires": []
+ },
+ {
+  "id": "inE",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/event",
+  "topic": "iotfrontier/event",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 740,
+  "wires": [
+   [
+    "tE"
+   ]
+  ]
+ },
+ {
+  "id": "tE",
+  "type": "ui_text",
+  "z": "flow",
+  "group": "gCtl",
+  "order": 7,
+  "width": 6,
+  "height": 1,
+  "name": "Last action",
+  "label": "Last action",
+  "format": "{{msg.payload}}",
+  "layout": "row-spread",
+  "x": 520,
+  "y": 740,
+  "wires": []
+ },
+ {
+  "id": "inAI",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "edgeimpulse/results",
+  "topic": "edgeimpulse/results",
+  "qos": "1",
+  "datatype": "json",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 800,
+  "wires": [
+   [
+    "fnAI"
+   ]
+  ]
+ },
+ {
+  "id": "fnAI",
+  "type": "function",
+  "z": "flow",
+  "name": "top label",
+  "func": "// Pick the class with the highest score\nconst p = msg.payload || {};\nlet label = p.label, conf = p.confidence;\nif (!label && p.predictions) {\n  for (const [k, v] of Object.entries(p.predictions)) {\n    if (conf === undefined || v > conf) { label = k; conf = v; }\n  }\n}\nif (!label) return null;\nreturn [{ payload: label }, { payload: Math.round(conf * 100) + ' %' }];",
+  "outputs": 2,
+  "x": 400,
+  "y": 800,
+  "wires": [
+   [
+    "tL",
+    "fwd"
+   ],
+   [
+    "tC"
+   ]
+  ]
+ },
+ {
+  "id": "fwd",
+  "type": "function",
+  "z": "flow",
+  "name": "green/yellow only",
+  "func": "const l = String(msg.payload).toLowerCase();\nif (l !== 'green' && l !== 'yellow') return null;\nreturn { payload: l };",
+  "outputs": 1,
+  "x": 600,
+  "y": 830,
+  "wires": [
+   [
+    "outLeaf"
+   ]
+  ]
+ },
+ {
+  "id": "tL",
+  "type": "ui_text",
+  "z": "flow",
+  "group": "gAI",
+  "order": 1,
+  "width": 6,
+  "height": 1,
+  "name": "Camera result",
+  "label": "Camera result",
+  "format": "{{msg.payload}}",
+  "layout": "row-spread",
+  "x": 520,
+  "y": 800,
+  "wires": []
+ },
+ {
+  "id": "tC",
+  "type": "ui_text",
+  "z": "flow",
+  "group": "gAI",
+  "order": 2,
+  "width": 6,
+  "height": 1,
+  "name": "Confidence",
+  "label": "Confidence",
+  "format": "{{msg.payload}}",
+  "layout": "row-spread",
+  "x": 520,
+  "y": 840,
+  "wires": []
+ },
+ {
+  "id": "bG",
+  "type": "ui_button",
+  "z": "flow",
+  "name": "Leaf looks GREEN",
+  "group": "gAI",
+  "order": 3,
+  "width": 3,
+  "height": 1,
+  "passthru": false,
+  "label": "Leaf looks GREEN",
+  "tooltip": "Send the result from the AI model on the phone",
+  "color": "",
+  "bgcolor": "",
+  "className": "",
+  "icon": "",
+  "payload": "green",
+  "payloadType": "str",
+  "topic": "",
+  "topicType": "str",
+  "x": 520,
+  "y": 900,
+  "wires": [
+   [
+    "outLeaf"
+   ]
+  ]
+ },
+ {
+  "id": "bY",
+  "type": "ui_button",
+  "z": "flow",
+  "name": "Leaf looks YELLOW",
+  "group": "gAI",
+  "order": 4,
+  "width": 3,
+  "height": 1,
+  "passthru": false,
+  "label": "Leaf looks YELLOW",
+  "tooltip": "Send the result from the AI model on the phone",
+  "color": "",
+  "bgcolor": "",
+  "className": "",
+  "icon": "",
+  "payload": "yellow",
+  "payloadType": "str",
+  "topic": "",
+  "topicType": "str",
+  "x": 520,
+  "y": 940,
+  "wires": [
+   [
+    "outLeaf"
+   ]
+  ]
+ },
+ {
+  "id": "outLeaf",
+  "type": "mqtt out",
+  "z": "flow",
+  "name": "iotfrontier/leaf",
+  "topic": "iotfrontier/leaf",
+  "qos": "1",
+  "retain": "false",
+  "broker": "brk",
+  "x": 800,
+  "y": 980,
+  "wires": []
+ },
+ {
+  "id": "inD",
+  "type": "mqtt in",
+  "z": "flow",
+  "name": "iotfrontier/diagnosis",
+  "topic": "iotfrontier/diagnosis",
+  "qos": "1",
+  "datatype": "utf8",
+  "broker": "brk",
+  "nl": false,
+  "rap": true,
+  "rh": 0,
+  "inputs": 0,
+  "x": 200,
+  "y": 1040,
+  "wires": [
+   [
+    "tD"
+   ]
+  ]
+ },
+ {
+  "id": "tD",
+  "type": "ui_text",
+  "z": "flow",
+  "group": "gAI",
+  "order": 5,
+  "width": 6,
+  "height": 2,
+  "name": "Diagnosis",
+  "label": "Diagnosis",
+  "format": "{{msg.payload}}",
+  "layout": "col-center",
+  "x": 520,
+  "y": 1040,
+  "wires": []
+ }
+]
